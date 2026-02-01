@@ -9,6 +9,7 @@
 
 namespace OCA\Registration\Controller;
 
+use OCA\Registration\Service\InvitationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -26,7 +27,14 @@ class SettingsController extends Controller {
 	/** @var string */
 	protected $appName;
 
-	public function __construct($appName, IRequest $request, IL10N $l10n, IConfig $config, IGroupManager $groupmanager) {
+	public function __construct(
+		string $appName,
+		IRequest $request,
+		IL10N $l10n,
+		IConfig $config,
+		IGroupManager $groupmanager,
+		private InvitationService $invitationService,
+	) {
 		parent::__construct($appName, $request);
 		$this->l10n = $l10n;
 		$this->config = $config;
@@ -63,7 +71,10 @@ class SettingsController extends Controller {
 		?bool $enforce_phone,
 		?bool $domains_is_blocklist,
 		?bool $show_domains,
-		?bool $disable_email_verification): DataResponse {
+		?bool $disable_email_verification,
+		?bool $invitation_only,
+		?bool $allow_registration_button
+	): DataResponse {
 		// handle domains
 		if (($allowed_domains === '') || ($allowed_domains === null)) {
 			$this->config->deleteAppValue($this->appName, 'allowed_domains');
@@ -109,6 +120,8 @@ class SettingsController extends Controller {
 		$this->config->setAppValue($this->appName, 'domains_is_blocklist', $domains_is_blocklist ? 'yes' : 'no');
 		$this->config->setAppValue($this->appName, 'show_domains', $show_domains ? 'yes' : 'no');
 		$this->config->setAppValue($this->appName, 'disable_email_verification', $disable_email_verification ? 'yes' : 'no');
+		$this->config->setAppValue($this->appName, 'invitation_only', $invitation_only ? 'yes' : 'no');
+		$this->config->setAppValue($this->appName, 'allow_registration_button', $allow_registration_button ? 'yes' : 'no');
 
 		if ($registered_user_group === null) {
 			$this->config->deleteAppValue($this->appName, 'registered_user_group');
@@ -137,5 +150,30 @@ class SettingsController extends Controller {
 			],
 			'status' => 'error',
 		], Http::STATUS_NOT_FOUND);
+	}
+
+	/**
+	 * @AdminRequired
+	 *
+	 * @param string $email
+	 * @return DataResponse
+	 */
+	public function invite(string $email): DataResponse {
+		try {
+			$this->invitationService->createInvitation($email);
+			return new DataResponse([
+				'data' => [
+					'message' => $this->l10n->t('Invitation sent to %s', [$email]),
+				],
+				'status' => 'success',
+			]);
+		} catch (\Exception $e) {
+			return new DataResponse([
+				'data' => [
+					'message' => $e->getMessage(),
+				],
+				'status' => 'error',
+			], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
 	}
 }

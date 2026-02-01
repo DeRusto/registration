@@ -20,6 +20,15 @@
 					<Email :size="20" />
 				</NcTextField>
 
+				<NcTextField name="invitation_code"
+					type="text"
+					:label="invitationLabel"
+					:label-visible="true"
+					:required="invitationOnly"
+					:value="invitationCode">
+					<Key :size="20" />
+				</NcTextField>
+
 				<div id="terms_of_service" />
 
 				<input type="hidden" name="requesttoken" :value="requesttoken">
@@ -47,6 +56,7 @@ import NcNoteCard from '@nextcloud/vue/dist/Components/NcNoteCard.js'
 import NcTextField from '@nextcloud/vue/dist/Components/NcTextField.js'
 import { loadState } from '@nextcloud/initial-state'
 import Email from 'vue-material-design-icons/Email.vue'
+import Key from 'vue-material-design-icons/Key.vue'
 
 export default {
 	name: 'RegistrationEmail',
@@ -56,6 +66,7 @@ export default {
 		NcTextField,
 		NcNoteCard,
 		Email,
+		Key,
 	},
 
 	data() {
@@ -66,6 +77,8 @@ export default {
 			disableEmailVerification: loadState('registration', 'disableEmailVerification'),
 			isLoginFlow: loadState('registration', 'isLoginFlow'),
 			loginFormLink: loadState('registration', 'loginFormLink'),
+			invitationCode: loadState('registration', 'invitationCode'),
+			invitationOnly: loadState('registration', 'invitationOnly'),
 		}
 	},
 
@@ -74,6 +87,11 @@ export default {
 			return this.emailIsOptional
 				? t('registration', 'Email (optional)')
 				: t('registration', 'Email')
+		},
+		invitationLabel() {
+			return this.invitationOnly
+				? t('registration', 'Invitation code')
+				: t('registration', 'Invitation code (optional)')
 		},
 		submitValue() {
 			if (this.emailIsOptional || this.disableEmailVerification) {

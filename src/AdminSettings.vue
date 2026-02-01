@@ -71,6 +71,33 @@
 				@update:checked="saveData">
 				{{ t('registration', 'Disable email verification') }}
 			</NcCheckboxRadioSwitch>
+
+			<NcCheckboxRadioSwitch :checked.sync="invitationOnly"
+				type="switch"
+				:disabled="loading"
+				@update:checked="saveData">
+				{{ t('registration', 'Registration by invitation only') }}
+			</NcCheckboxRadioSwitch>
+
+			<NcCheckboxRadioSwitch :checked.sync="allowRegistrationButton"
+				type="switch"
+				:disabled="loading"
+				@update:checked="saveData">
+				{{ t('registration', 'Show register button on login page') }}
+			</NcCheckboxRadioSwitch>
+		</NcSettingsSection>
+
+		<NcSettingsSection v-if="invitationOnly" :name="t('registration', 'Invitation')">
+			<NcTextField :label="t('registration', 'Invite email address')"
+				:label-visible="true"
+				:value.sync="inviteEmail"
+				:disabled="inviteLoading"
+				placeholder="user@example.com" />
+			<button class="button primary margin-top"
+				:disabled="inviteLoading || !inviteEmail"
+				@click="sendInvite">
+				{{ t('registration', 'Send invitation') }}
+			</button>
 		</NcSettingsSection>
 
 		<NcSettingsSection :name="t('registration', 'User settings')">
@@ -200,6 +227,10 @@ export default {
 			enforcePhone: false,
 			additionalHint: '',
 			emailVerificationHint: '',
+			invitationOnly: false,
+			allowRegistrationButton: true,
+			inviteEmail: '',
+			inviteLoading: false,
 		}
 	},
 
@@ -236,6 +267,8 @@ export default {
 		this.enforcePhone = loadState('registration', 'enforce_phone')
 		this.additionalHint = loadState('registration', 'additional_hint')
 		this.emailVerificationHint = loadState('registration', 'email_verification_hint')
+		this.invitationOnly = loadState('registration', 'invitation_only')
+		this.allowRegistrationButton = loadState('registration', 'allow_registration_button')
 
 		this.searchGroup('')
 	},
@@ -243,6 +276,31 @@ export default {
 		debounceSavingSlow: debounce(function() {
 			this.saveData()
 		}, 2000),
+
+		async sendInvite() {
+			this.inviteLoading = true
+			try {
+				const response = await axios.post(generateUrl('/apps/registration/settings/invite'), {
+					email: this.inviteEmail,
+				})
+				if (response?.data?.status === 'success' && response?.data?.data?.message) {
+					showSuccess(response.data.data.message)
+					this.inviteEmail = ''
+				} else if (response?.data?.data?.message) {
+					showError(response.data.data.message)
+				} else {
+					showError(t('registration', 'An error occurred while sending the invitation'))
+				}
+			} catch (e) {
+				if (e.response?.data?.data?.message) {
+					showError(e.response.data.data.message)
+				} else {
+					showError(t('registration', 'An error occurred while sending the invitation'))
+					console.error(e)
+				}
+			}
+			this.inviteLoading = false
+		},
 
 		async saveData() {
 			this.loading = true
@@ -267,6 +325,8 @@ export default {
 					enforce_phone: this.enforcePhone,
 					additional_hint: this.additionalHint,
 					email_verification_hint: this.emailVerificationHint,
+					invitation_only: this.invitationOnly,
+					allow_registration_button: this.allowRegistrationButton,
 				})
 
 				if (response?.data?.status === 'success' && response?.data?.data?.message) {

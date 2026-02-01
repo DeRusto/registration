@@ -16,6 +16,7 @@ use libphonenumber\PhoneNumberUtil;
 use OC\Authentication\Exceptions\PasswordlessTokenException;
 use OC\Authentication\Token\IProvider;
 use OCA\Registration\AppInfo\Application;
+use OCA\Registration\Db\Invitation;
 use OCA\Registration\Db\Registration;
 use OCA\Registration\Db\RegistrationMapper;
 use OCA\Settings\Mailer\NewUserMailHelper;
@@ -66,6 +67,11 @@ class RegistrationService {
 
 	public function generateNewToken(Registration $registration): void {
 		$this->registrationMapper->generateNewToken($registration);
+		$this->registrationMapper->update($registration);
+	}
+
+	public function setInvitation(Registration $registration, Invitation $invitation): void {
+		$registration->setInvitationId($invitation->getId());
 		$this->registrationMapper->update($registration);
 	}
 
