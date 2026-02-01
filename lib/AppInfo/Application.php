@@ -15,7 +15,6 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\IConfig;
 use OCP\User\Events\UserChangedEvent;
 
 class Application extends App implements IBootstrap {
@@ -26,14 +25,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-		$config = $this->getContainer()->get(IConfig::class);
-		$invitationOnly = $config->getAppValue(self::APP_ID, 'invitation_only', 'no') === 'yes';
-		$allowButton = $config->getAppValue(self::APP_ID, 'allow_registration_button', 'yes') === 'yes';
-
-		if (!$invitationOnly || $allowButton) {
-			$context->registerAlternativeLogin(RegistrationLoginOption::class);
-		}
-
+		$context->registerAlternativeLogin(RegistrationLoginOption::class);
 		$context->registerCapability(Capabilities::class);
 		$context->registerEventListener(UserChangedEvent::class, UserEnabledListener::class);
 	}
