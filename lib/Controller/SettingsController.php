@@ -167,17 +167,10 @@ class SettingsController extends Controller {
 				],
 				'status' => 'success',
 			]);
-		} catch (\InvalidArgumentException $e) {
+		} catch (\Exception $e) {
 			return new DataResponse([
 				'data' => [
-					'message' => $this->l10n->t('Invalid email address'),
-				],
-				'status' => 'error',
-			], Http::STATUS_BAD_REQUEST);
-		} catch (\Throwable $e) {
-			return new DataResponse([
-				'data' => [
-					'message' => $this->l10n->t('Failed to send invitation'),
+					'message' => $e->getMessage(),
 				],
 				'status' => 'error',
 			], Http::STATUS_INTERNAL_SERVER_ERROR);

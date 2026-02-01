@@ -328,7 +328,8 @@ class RegisterController extends Controller {
 				try {
 					$invitation = $this->invitationService->getInvitation($registration->getInvitationId());
 				} catch (\Exception $e) {
-					return $this->showUserForm($secret, $token, $loginname, $fullname, $phone, $password, $this->l10n->t('The invitation is no longer valid.'));
+					// Fail if invitation ID is present but invitation cannot be retrieved
+					throw new RegistrationException($this->l10n->t('Invitation not found or already used.'));
 				}
 			}
 			$user = $this->registrationService->createAccount($registration, $loginname, $fullname, $phone, $password, $invitation);
