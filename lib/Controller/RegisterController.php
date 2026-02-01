@@ -323,16 +323,15 @@ class RegisterController extends Controller {
 		}
 
 		try {
-			$user = $this->registrationService->createAccount($registration, $loginname, $fullname, $phone, $password);
-
+			$invitation = null;
 			if ($registration->getInvitationId()) {
 				try {
 					$invitation = $this->invitationService->getInvitation($registration->getInvitationId());
-					$this->invitationService->consumeInvitation($invitation);
 				} catch (\Exception $e) {
-					// Silent failure if invitation not found/already consumed, but we shouldn't fail account creation
+					// Invitation not found
 				}
 			}
+			$user = $this->registrationService->createAccount($registration, $loginname, $fullname, $phone, $password, $invitation);
 		} catch (HintException $exception) {
 			return $this->showUserForm($secret, $token, $loginname, $fullname, $phone, $password, $exception->getHint());
 		} catch (Exception $exception) {

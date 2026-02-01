@@ -62,8 +62,13 @@ class InvitationService {
 		return $invitation;
 	}
 
-	public function consumeInvitation(Invitation $invitation): void {
-		$this->invitationMapper->delete($invitation);
+	public function consumeInvitation(Invitation $invitation): bool {
+		try {
+			$this->invitationMapper->delete($invitation);
+			return true;
+		} catch (DoesNotExistException $e) {
+			return false;
+		}
 	}
 
 	/**

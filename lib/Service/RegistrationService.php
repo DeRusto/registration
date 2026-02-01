@@ -32,6 +32,7 @@ use OCP\ISession;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\IDBConnection;
 use OCP\IUserSession;
 use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
@@ -57,6 +58,8 @@ class RegistrationService {
 		private ISession $session,
 		private IProvider $tokenProvider,
 		private ICrypto $crypto,
+		private IDBConnection $db,
+		private InvitationService $invitationService,
 	) {
 	}
 
@@ -266,10 +269,11 @@ class RegistrationService {
 	 * @param string|null $fullName
 	 * @param string|null $phone
 	 * @param string|null $password
+	 * @param Invitation|null $invitation
 	 * @return IUser
 	 * @throws RegistrationException|InvalidArgumentException
 	 */
-	public function createAccount(Registration $registration, ?string $loginName = null, ?string $fullName = null, ?string $phone = null, ?string $password = null): IUser {
+	public function createAccount(Registration $registration, ?string $loginName = null, ?string $fullName = null, ?string $phone = null, ?string $password = null, ?Invitation $invitation = null): IUser {
 		if ($loginName === null) {
 			$loginName = $registration->getUsername();
 		}
@@ -298,16 +302,33 @@ class RegistrationService {
 			}
 		}
 
-		/* TODO
-		 * createUser tests username validity once, but validateUsername already checked it,
-		 * but createUser doesn't check if there is a pending registration with that name
-		 *
-		 * And validateUsername will throw RegistrationException while
-		 * createUser throws \InvalidArgumentException
-		 */
-		$user = $this->userManager->createUser($loginName, $password);
-		if ($user === false) {
-			throw new RegistrationException($this->l10n->t('Unable to create user, there are problems with the user backend.'));
+		$this->db->beginTransaction();
+		try {
+			if ($invitation !== null) {
+				if (!$this->invitationService->consumeInvitation($invitation)) {
+					throw new RegistrationException($this->l10n->t('Invitation has already been used.'));
+				}
+			}
+
+			/* TODO
+			 * createUser tests username validity once, but validateUsername already checked it,
+			 * but createUser doesn't check if there is a pending registration with that name
+			 *
+			 * And validateUsername will throw RegistrationException while
+			 * createUser throws \InvalidArgumentException
+			 */
+			$user = $this->userManager->createUser($loginName, $password);
+			if ($user === false) {
+				throw new RegistrationException($this->l10n->t('Unable to create user, there are problems with the user backend.'));
+			}
+
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			if ($e instanceof RegistrationException) {
+				throw $e;
+			}
+			throw new RegistrationException($this->l10n->t('An error occurred during account creation.'));
 		}
 		$userId = $user->getUID();
 
