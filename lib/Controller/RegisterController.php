@@ -17,6 +17,7 @@ use OCA\Registration\Db\Registration;
 use OCA\Registration\Events\PassedFormEvent;
 use OCA\Registration\Events\ShowFormEvent;
 use OCA\Registration\Events\ValidateFormEvent;
+use OCA\Registration\Service\InvitationService;
 use OCA\Registration\Service\LoginFlowService;
 use OCA\Registration\Service\MailService;
 use OCA\Registration\Service\RegistrationException;
@@ -47,6 +48,7 @@ class RegisterController extends Controller {
 	private LoginFlowService $loginFlowService;
 	private IEventDispatcher $eventDispatcher;
 	private IInitialState $initialState;
+	private InvitationService $invitationService;
 
 	public function __construct(
 		string $appName,
@@ -59,6 +61,7 @@ class RegisterController extends Controller {
 		MailService $mailService,
 		IEventDispatcher $eventDispatcher,
 		IInitialState $initialState,
+		InvitationService $invitationService,
 	) {
 		parent::__construct($appName, $request);
 		$this->l10n = $l10n;
@@ -69,6 +72,7 @@ class RegisterController extends Controller {
 		$this->mailService = $mailService;
 		$this->eventDispatcher = $eventDispatcher;
 		$this->initialState = $initialState;
+		$this->invitationService = $invitationService;
 	}
 
 	/**
@@ -76,6 +80,8 @@ class RegisterController extends Controller {
 	 * @PublicPage
 	 */
 	public function showEmailForm(string $email = '', string $message = ''): TemplateResponse {
+		$invitationCode = $this->request->getParam('invitation_code', '');
+
 		$emailHint = '';
 		$domainList = $this->registrationService->getAllowedDomains();
 		if (!empty($domainList) && $this->config->getAppValue(Application::APP_ID, 'show_domains', 'no') === 'yes') {
@@ -101,6 +107,8 @@ class RegisterController extends Controller {
 		$this->initialState->provideInitialState('disableEmailVerification', $this->config->getAppValue($this->appName, 'disable_email_verification', 'no') === 'yes');
 		$this->initialState->provideInitialState('isLoginFlow', $this->loginFlowService->isUsingLoginFlow());
 		$this->initialState->provideInitialState('loginFormLink', $this->urlGenerator->linkToRoute('core.login.showLoginForm'));
+		$this->initialState->provideInitialState('invitationCode', $invitationCode);
+		$this->initialState->provideInitialState('invitationOnly', $this->config->getAppValue($this->appName, 'invitation_only', 'no') === 'yes');
 		return new TemplateResponse('registration', 'form/email', [], 'guest');
 	}
 
@@ -108,7 +116,24 @@ class RegisterController extends Controller {
 	 * @PublicPage
 	 * @AnonRateThrottle(limit=5, period=300)
 	 */
-	public function submitEmailForm(string $email): Response {
+	public function submitEmailForm(string $email, string $invitationCode = ''): Response {
+		$invitationOnly = $this->config->getAppValue($this->appName, 'invitation_only', 'no') === 'yes';
+		$invitation = null;
+
+		if ($invitationOnly || $invitationCode !== '') {
+			if ($invitationOnly && $invitationCode === '') {
+				return $this->showEmailForm($email, $this->l10n->t('Invitation code is required.'));
+			}
+
+			try {
+				$disableEmailVerification = $this->config->getAppValue($this->appName, 'disable_email_verification', 'no') === 'yes';
+				$checkEmail = !$disableEmailVerification ? $email : null;
+				$invitation = $this->invitationService->validateInvitation($invitationCode, $checkEmail);
+			} catch (RegistrationException $e) {
+				return $this->showEmailForm($email, $e->getMessage());
+			}
+		}
+
 		$validateFormEvent = new ValidateFormEvent(ValidateFormEvent::STEP_EMAIL);
 		$this->eventDispatcher->dispatchTyped($validateFormEvent);
 
@@ -132,7 +157,14 @@ class RegisterController extends Controller {
 			$registration = $this->registrationService->createRegistration($email);
 		}
 
-		if ($this->config->getAppValue($this->appName, 'disable_email_verification', 'no') === 'yes') {
+		if ($invitation) {
+			$this->registrationService->setInvitation($registration, $invitation);
+		}
+
+		// If email verification is disabled OR we have a valid invitation (and verification is enabled - implied by validateInvitation logic above)
+		// Invitation code acts as verification if email verification is enabled.
+		if ($this->config->getAppValue($this->appName, 'disable_email_verification', 'no') === 'yes'
+			|| ($invitation && $this->config->getAppValue($this->appName, 'disable_email_verification', 'no') !== 'yes')) {
 			$this->eventDispatcher->dispatchTyped(new PassedFormEvent(PassedFormEvent::STEP_EMAIL, $registration->getClientSecret()));
 
 			return new RedirectResponse(
@@ -291,7 +323,16 @@ class RegisterController extends Controller {
 		}
 
 		try {
-			$user = $this->registrationService->createAccount($registration, $loginname, $fullname, $phone, $password);
+			$invitation = null;
+			if ($registration->getInvitationId()) {
+				try {
+					$invitation = $this->invitationService->getInvitation($registration->getInvitationId());
+				} catch (\Exception $e) {
+					// Fail if invitation ID is present but invitation cannot be retrieved
+					throw new RegistrationException($this->l10n->t('Invitation not found or already used.'));
+				}
+			}
+			$user = $this->registrationService->createAccount($registration, $loginname, $fullname, $phone, $password, $invitation);
 		} catch (HintException $exception) {
 			return $this->showUserForm($secret, $token, $loginname, $fullname, $phone, $password, $exception->getHint());
 		} catch (Exception $exception) {

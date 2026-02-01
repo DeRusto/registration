@@ -95,6 +95,14 @@ class RegistrationSettings implements ISettings {
 			'email_verification_hint',
 			$this->config->getAppValue($this->appName, 'email_verification_hint')
 		);
+		$this->initialState->provideInitialState(
+			'invitation_only',
+			$this->config->getAppValue($this->appName, 'invitation_only', 'no') === 'yes'
+		);
+		$this->initialState->provideInitialState(
+			'allow_registration_button',
+			$this->config->getAppValue($this->appName, 'allow_registration_button', 'yes') === 'yes'
+		);
 
 		Util::addScript('registration', 'registration-settings');
 		Util::addStyle('registration', 'registration-settings');

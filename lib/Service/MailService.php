@@ -107,6 +107,52 @@ class MailService {
 		}
 	}
 
+	/**
+	 * @param string $email
+	 * @param string $code
+	 * @throws RegistrationException
+	 */
+	public function sendInvitation(string $email, string $code): void {
+		$link = $this->urlGenerator->linkToRouteAbsolute('registration.register.showEmailForm', [
+			'invitation_code' => $code,
+		]);
+		$subject = $this->l10n->t('You have been invited to %s', [$this->defaults->getName()]);
+
+		$template = $this->mailer->createEMailTemplate('registration_invitation', [
+			'link' => $link,
+			'code' => $code,
+			'sitename' => $this->defaults->getName(),
+		]);
+
+		$template->setSubject($subject);
+		$template->addHeader();
+		$template->addHeading($this->l10n->t('Invitation'));
+
+		$template->addBodyText(
+			$this->l10n->t('You have been invited to register on %s.', [$this->defaults->getName()])
+		);
+
+		$template->addBodyText(
+			$this->l10n->t('Invitation code: %s', $code)
+		);
+
+		$template->addBodyButton(
+			$this->l10n->t('Register'),
+			$link
+		);
+		$template->addFooter();
+
+		$from = Util::getDefaultEmailAddress('register');
+		$message = $this->mailer->createMessage();
+		$message->setFrom([$from => $this->defaults->getName()]);
+		$message->setTo([$email]);
+		$message->useTemplate($template);
+		$failed_recipients = $this->mailer->send($message);
+		if (!empty($failed_recipients)) {
+			throw new RegistrationException($this->l10n->t('A problem occurred sending email, please contact your administrator.'));
+		}
+	}
+
 	public function notifyAdmins(string $userId, ?string $userEMailAddress, bool $userIsEnabled, string $userGroupId): void {
 		// Notify admin
 		$adminUsers = $this->groupManager->get('admin')->getUsers();
