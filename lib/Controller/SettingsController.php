@@ -183,6 +183,4 @@ class SettingsController extends Controller {
 			], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
-		}
-	}
 }
